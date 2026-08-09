@@ -64,6 +64,10 @@ function setupInlineHandler(bot) {
         ? String(offset + config.MAX_RESULTS)
         : '';
 
+      if (results.length > 0) {
+        console.log('[INLINE] First result object:', JSON.stringify(results[0], null, 2));
+      }
+
       await ctx.answerInlineQuery(results, {
         cache_time:  5,
         is_personal: true,

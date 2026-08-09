@@ -43,6 +43,7 @@ async function fetchChannelMedia(chatId) {
             fromPeer: chatId
           });
           await delay(2000);
+          console.log('[GRAMJS] Forwarded message', message.id, 'to bot DM');
         } catch (err) {
           if (err.errorMessage === 'FLOOD_WAIT_X' || err.message.includes('FLOOD_WAIT')) {
             const waitTime = err.seconds || parseInt(err.message.match(/\d+/)?.[0] || '30', 10);
@@ -54,6 +55,7 @@ async function fetchChannelMedia(chatId) {
                 fromPeer: chatId
               });
               await delay(2000);
+              console.log('[GRAMJS] Forwarded message', message.id, 'to bot DM');
             } catch (retryErr) {
               // Silent skip
             }

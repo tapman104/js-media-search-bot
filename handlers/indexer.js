@@ -6,6 +6,7 @@ const { isIndexedChannel, savePendingMedia, commitPendingMedia, listChannels } =
 function setupIndexer(bot) {
   bot.on(['message', 'channel_post'], async (ctx) => {
     try {
+      console.log('[INDEXER] Received message from:', ctx.from?.id, 'type:', ctx.message?.document ? 'document' : 'other');
       const msg = ctx.message || ctx.channelPost;
       if (!msg) return;
 

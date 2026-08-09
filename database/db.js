@@ -247,6 +247,10 @@ function deleteMediaByFileId(fileId) {
   return info.changes > 0;
 }
 
+function getMediaBySourceId(chatId, messageId) {
+  return db.prepare('SELECT id FROM media WHERE chat_id = ? AND message_id = ?').get(chatId, messageId);
+}
+
 function getMediaById(id) {
   return db.prepare('SELECT * FROM media WHERE id = ?').get(id);
 }
@@ -265,5 +269,5 @@ module.exports = {
   isAdmin, addAdmin, removeAdmin, listAdmins,
   isIndexedChannel, addChannel, removeChannel, listChannels,
   saveMedia, savePendingMedia, commitPendingMedia, searchMedia, getTotalCount, deleteMediaByFileId, getStats,
-  getMediaById,
+  getMediaById, getMediaBySourceId,
 };

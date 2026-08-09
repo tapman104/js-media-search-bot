@@ -133,7 +133,8 @@ function setupCommands(bot) {
       if (config.SESSION_STRING) {
         await ctx.reply('🔄 Fetching history via GramJS...');
         try {
-          await fetchChannelMedia(chatId);
+          const { total, mediaCount } = await fetchChannelMedia(chatId);
+          await ctx.reply(`✅ Indexed ${mediaCount} new files from ${chatId} (${total} total messages scanned)`);
           await ctx.reply('✅ GramJS fetch complete. Committing to index...');
         } catch (err) {
           console.error('[GRAMJS]', err);
@@ -146,7 +147,8 @@ function setupCommands(bot) {
         await ctx.reply(`🔄 Fetching history via GramJS for ${channels.length} channels...`);
         for (const ch of channels) {
           try {
-            await fetchChannelMedia(ch.chat_id);
+            const { total, mediaCount } = await fetchChannelMedia(ch.chat_id);
+            await ctx.reply(`✅ Indexed ${mediaCount} new files from ${ch.chat_id} (${total} total messages scanned)`);
           } catch (err) {
             console.error(`[GRAMJS] Failed for ${ch.chat_id}:`, err.message);
           }

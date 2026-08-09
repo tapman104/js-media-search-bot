@@ -1,4 +1,4 @@
-const { TelegramClient } = require('telegram');
+const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const config = require('./config');
 
@@ -27,19 +27,25 @@ async function fetchChannelMedia(chatId) {
     throw new Error('BOT_USERNAME is not configured in .env');
   }
 
-  for await (const message of c.iterMessages(chatId, { limit: undefined })) {
-    if (!message.media) continue;
+  console.log(`[GRAMJS] Scanning chat ${chatId}...`);
+  let total = 0, mediaCount = 0;
 
-    const mediaClass = message.media.className;
-    const isValidMedia = mediaClass === 'MessageMediaDocument' || (mediaClass === 'MessageMediaPhoto' && message.document);
-    
-    if (!isValidMedia) continue;
+  for await (const message of c.iterMessages(chatId, { limit: undefined })) {
+    total++;
+
+    if (!message.media) continue;
+    if (!(message.media instanceof Api.MessageMediaDocument)) continue;
+    if (!message.media.document) continue;
+
+    mediaCount++;
+
 
     const forwardMessage = async () => {
       await c.sendMessage(config.BOT_USERNAME, {
         forwardMessages: [message.id],
         fromPeer: chatId,
       });
+      console.log(`[GRAMJS] Successfully forwarded message ${message.id} from ${chatId}`);
       await delay(500);
     };
 
@@ -63,6 +69,8 @@ async function fetchChannelMedia(chatId) {
       }
     }
   }
+
+  console.log(`[GRAMJS] Scan complete: ${total} messages, ${mediaCount} media found`);
 }
 
 module.exports = { fetchChannelMedia };

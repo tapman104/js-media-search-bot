@@ -30,6 +30,7 @@ async function fetchChannelMedia(chatId) {
 
   console.log(`[GRAMJS] Scanning chat ${chatId}...`);
   let total = 0, mediaCount = 0;
+  let forwardsInBatch = 0;
 
   for await (const message of c.iterMessages(chatId, { limit: undefined, waitTime: 1 })) {
     total++;
@@ -45,8 +46,14 @@ async function fetchChannelMedia(chatId) {
             randomId: [BigInt(Math.floor(Math.random() * 1e15))],
             dropAuthor: false,
           }));
-          await delay(2000);
           console.log('[GRAMJS] Forwarded message', message.id, 'to bot DM');
+          forwardsInBatch++;
+
+          if (forwardsInBatch >= 100) {
+            console.log(`[GRAMJS] Batch of 100 reached. Pausing for 30 seconds...`);
+            await delay(30000);
+            forwardsInBatch = 0;
+          }
         } catch (err) {
           if (err.errorMessage === 'FLOOD_WAIT_X' || err.message.includes('FLOOD_WAIT')) {
             const waitTime = err.seconds || parseInt(err.message.match(/\d+/)?.[0] || '30', 10);
@@ -60,8 +67,14 @@ async function fetchChannelMedia(chatId) {
                 randomId: [BigInt(Math.floor(Math.random() * 1e15))],
                 dropAuthor: false,
               }));
-              await delay(2000);
               console.log('[GRAMJS] Forwarded message', message.id, 'to bot DM');
+              forwardsInBatch++;
+              
+              if (forwardsInBatch >= 100) {
+                console.log(`[GRAMJS] Batch of 100 reached. Pausing for 30 seconds...`);
+                await delay(30000);
+                forwardsInBatch = 0;
+              }
             } catch (retryErr) {
               // Silent skip
             }

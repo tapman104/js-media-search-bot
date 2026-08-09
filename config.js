@@ -9,6 +9,9 @@ function parseIds(envVal = '') {
 
 const config = {
   BOT_TOKEN:          process.env.BOT_TOKEN,
+  API_ID:             process.env.API_ID,
+  API_HASH:           process.env.API_HASH,
+  SESSION_STRING:     process.env.SESSION_STRING,
   ADMINS:             parseIds(process.env.ADMINS),
   CHANNELS:           parseIds(process.env.CHANNELS),
   RATE_LIMIT_SECONDS: Number(process.env.RATE_LIMIT_SECONDS) || 10,

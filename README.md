@@ -26,6 +26,9 @@ pm2 save
 pm2 startup   # follow the printed command to auto-start on reboot
 ```
 
+## Support
+☕ [Buy Me A Coffee](https://buymeacoffee.com/tapman)
+
 ## Commands
 
 | Command | Who | Description |

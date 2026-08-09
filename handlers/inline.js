@@ -37,26 +37,21 @@ function setupInlineHandler(bot) {
         const desc = `📄 ${formatSize(file.file_size)}`;
         const caption = `📁 *${file.file_name || 'Unknown File'}*\nSize: ${formatSize(file.file_size)}`;
 
-        if (file.file_type === 'video') {
-          return {
-            type: 'video',
-            id: file.id.toString(),
-            title: file.file_name || 'Unknown Video',
-            video_file_id: file.file_id,
-            description: desc,
-            caption: caption,
-            parse_mode: 'Markdown'
-          };
-        }
-
         return {
-          type: 'document',
+          type: 'article',
           id: file.id.toString(),
           title: file.file_name || 'Unknown File',
-          document_file_id: file.file_id,
           description: desc,
-          caption: caption,
-          parse_mode: 'Markdown'
+          input_message_content: {
+            message_text: caption,
+            parse_mode: 'Markdown'
+          },
+          reply_markup: {
+            inline_keyboard: [[{
+              text: '📥 Get File',
+              callback_data: `get_f_${file.id}`
+            }]]
+          }
         };
       });
 

@@ -3,7 +3,6 @@ const config       = require('./config');
 const { initDB }   = require('./database/db');
 const setupCommands = require('./handlers/commands');
 const setupInline   = require('./handlers/inline');
-const { setupIndexer } = require('./handlers/indexer');
 
 async function main() {
   console.log('[BOT] Starting Media Search Bot...');
@@ -12,7 +11,6 @@ async function main() {
   // Register handlers
   setupCommands(bot);
   setupInline(bot);
-  setupIndexer(bot);
 
   // Graceful shutdown
   process.once('SIGINT',  () => { console.log('[BOT] SIGINT — stopping'); bot.stop('SIGINT');  });

@@ -10,6 +10,18 @@ if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
 const db = new Database(DB_PATH);
 
+// Simple migration: drop old tables if they contain file_id
+try {
+  const tableInfo = db.pragma('table_info(media)');
+  const hasFileId = tableInfo.some(col => col.name === 'file_id');
+  if (hasFileId) {
+    console.log('[DB] Migrating schema (dropping old media tables)...');
+    db.exec('DROP TABLE IF EXISTS media_fts');
+    db.exec('DROP TABLE IF EXISTS media');
+    db.exec('DROP TABLE IF EXISTS pending_media');
+  }
+} catch (e) { }
+
 // Performance pragmas — safe for single-process bot
 db.pragma('journal_mode = WAL');
 db.pragma('synchronous = NORMAL');
@@ -36,8 +48,6 @@ db.exec(`
   -- Media index (main table)
   CREATE TABLE IF NOT EXISTS media (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    file_id     TEXT UNIQUE NOT NULL,
-    file_unique TEXT UNIQUE NOT NULL,
     file_name   TEXT NOT NULL,
     file_size   INTEGER,
     file_type   TEXT NOT NULL,   -- 'document' | 'video'
@@ -45,22 +55,8 @@ db.exec(`
     caption     TEXT,
     chat_id     INTEGER,
     message_id  INTEGER,
-    indexed_at  TEXT DEFAULT (datetime('now'))
-  );
-
-  -- Pending media (silent accumulator)
-  CREATE TABLE IF NOT EXISTS pending_media (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    file_id     TEXT UNIQUE NOT NULL,
-    file_unique TEXT UNIQUE NOT NULL,
-    file_name   TEXT NOT NULL,
-    file_size   INTEGER,
-    file_type   TEXT NOT NULL,
-    mime_type   TEXT,
-    caption     TEXT,
-    chat_id     INTEGER,
-    message_id  INTEGER,
-    added_at    TEXT DEFAULT (datetime('now'))
+    indexed_at  TEXT DEFAULT (datetime('now')),
+    UNIQUE(chat_id, message_id)
   );
 
   -- FTS5 virtual table for fast full-text search on file_name + caption
@@ -158,48 +154,15 @@ function saveMedia(media) {
   try {
     db.prepare(`
       INSERT OR IGNORE INTO media
-        (file_id, file_unique, file_name, file_size, file_type, mime_type, caption, chat_id, message_id)
+        (file_name, file_size, file_type, mime_type, caption, chat_id, message_id)
       VALUES
-        (@file_id, @file_unique, @file_name, @file_size, @file_type, @mime_type, @caption, @chat_id, @message_id)
+        (@file_name, @file_size, @file_type, @mime_type, @caption, @chat_id, @message_id)
     `).run(media);
     return true;
   } catch (err) {
     console.error('[DB] saveMedia error:', err.message);
     return false;
   }
-}
-
-function savePendingMedia(media) {
-  try {
-    db.prepare(`
-      INSERT OR IGNORE INTO pending_media
-        (file_id, file_unique, file_name, file_size, file_type, mime_type, caption, chat_id, message_id)
-      VALUES
-        (@file_id, @file_unique, @file_name, @file_size, @file_type, @mime_type, @caption, @chat_id, @message_id)
-    `).run(media);
-    return true;
-  } catch (err) {
-    console.error('[DB] savePendingMedia error:', err.message);
-    return false;
-  }
-}
-
-function commitPendingMedia(chatId) {
-  return db.transaction(() => {
-    // Move records to main media table
-    const insertResult = db.prepare(`
-      INSERT OR IGNORE INTO media
-        (file_id, file_unique, file_name, file_size, file_type, mime_type, caption, chat_id, message_id)
-      SELECT file_id, file_unique, file_name, file_size, file_type, mime_type, caption, chat_id, message_id
-      FROM pending_media
-      WHERE chat_id = ?
-    `).run(chatId);
-
-    // Delete pending records for this chat
-    db.prepare('DELETE FROM pending_media WHERE chat_id = ?').run(chatId);
-
-    return insertResult.changes;
-  })();
 }
 
 function searchMedia(query, offset = 0, limit = 10) {
@@ -242,15 +205,14 @@ function getTotalCount() {
   return db.prepare('SELECT COUNT(*) as count FROM media').get().count;
 }
 
-function deleteMediaByFileId(fileId) {
-  const info = db.prepare('DELETE FROM media WHERE file_id = ?').run(fileId);
+function deleteMediaById(id) {
+  const info = db.prepare('DELETE FROM media WHERE id = ?').run(id);
   return info.changes > 0;
 }
 
 function cleanDatabase() {
   return db.transaction(() => {
     db.prepare('DELETE FROM media').run();
-    db.prepare('DELETE FROM pending_media').run();
     return true;
   })();
 }
@@ -276,6 +238,6 @@ function getStats() {
 module.exports = {
   isAdmin, addAdmin, removeAdmin, listAdmins,
   isIndexedChannel, addChannel, removeChannel, listChannels,
-  saveMedia, savePendingMedia, commitPendingMedia, searchMedia, getTotalCount, deleteMediaByFileId, getStats,
+  saveMedia, searchMedia, getTotalCount, deleteMediaById, getStats,
   getMediaById, getMediaBySourceId, cleanDatabase,
 };

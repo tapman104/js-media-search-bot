@@ -1,7 +1,7 @@
 const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const config = require('./config');
-const { getMediaBySourceId } = require('./database/db');
+const { getMediaBySourceId, saveMedia } = require('./database/db');
 
 const apiId = Number(config.API_ID);
 const apiHash = config.API_HASH;
@@ -19,20 +19,8 @@ async function getClient() {
   return client;
 }
 
-const fs = require('fs');
-const path = require('path');
-
-const delay = (ms) => new Promise(res => setTimeout(res, ms));
-
 async function fetchChannelMedia(chatId) {
   const c = await getClient();
-
-  const dataDir = path.join(__dirname, 'data');
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-  const stateFile = path.join(dataDir, `pending_forwards_${chatId}.json`);
-  let pendingIds = [];
 
   console.log(`[GRAMJS] Scanning chat ${chatId}...`);
   let total = 0, mediaCount = 0;
@@ -42,16 +30,40 @@ async function fetchChannelMedia(chatId) {
 
     if (message.media && message.media.className === 'MessageMediaDocument' && message.media.document) {
       if (!getMediaBySourceId(Number(chatId), message.id)) {
+        const doc = message.media.document;
+        let file_name = 'Unknown';
+        let file_type = 'document';
+        
+        if (doc.attributes) {
+          for (const attr of doc.attributes) {
+            if (attr.className === 'DocumentAttributeFilename') {
+              file_name = attr.fileName;
+            } else if (attr.className === 'DocumentAttributeVideo') {
+              file_type = 'video';
+            }
+          }
+        }
+        
+        const file_size = doc.size ? Number(doc.size) : 0;
+        const mime_type = doc.mimeType || 'unknown';
+        const caption = message.message || null;
+
+        saveMedia({
+          file_name,
+          file_size,
+          file_type,
+          mime_type,
+          caption,
+          chat_id: Number(chatId),
+          message_id: message.id
+        });
         mediaCount++;
-        pendingIds.push(message.id);
       }
     }
   }
 
-  fs.writeFileSync(stateFile, JSON.stringify({ pending: pendingIds }, null, 2));
-
-  console.log(`[GRAMJS] Scan complete: ${total} messages scanned, ${mediaCount} media found to forward`);
-  return { total, mediaCount, stateFile };
+  console.log(`[GRAMJS] Scan complete: ${total} messages scanned, ${mediaCount} media indexed directly`);
+  return { total, mediaCount };
 }
 
 module.exports = { fetchChannelMedia };

@@ -2,12 +2,10 @@ const {
   isAdmin,
   addAdmin, removeAdmin, listAdmins,
   addChannel, removeChannel, listChannels,
-  getTotalCount, deleteMediaByFileId, getStats,
-  searchMedia, getMediaById, cleanDatabase, savePendingMedia
+  getTotalCount, deleteMediaById, getStats,
+  searchMedia, getMediaById, cleanDatabase
 } = require('../database/db');
-const fs = require('fs');
 const config = require('../config');
-const { runManualIndex } = require('./indexer');
 const { fetchChannelMedia } = require('../userbot');
 const { formatSize } = require('../utils/format');
 
@@ -26,79 +24,6 @@ function formatBytes(bytes) {
   let i = 0;
   while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
   return `${bytes.toFixed(1)} ${units[i]}`;
-}
-
-const delay = (ms) => new Promise(res => setTimeout(res, ms));
-
-async function processPendingForwards(bot, ctx, chatId, stateFile) {
-  if (!fs.existsSync(stateFile)) return;
-  
-  let state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
-  let pending = state.pending || [];
-  if (pending.length === 0) return;
-  
-  const batchSize = 50;
-  const currentBatch = pending.slice(0, batchSize);
-  
-  await ctx.reply(`🚀 Starting to forward ${currentBatch.length} media messages to your DM for indexing...`);
-  
-  let processedCount = 0;
-  let remaining = [...pending];
-  
-  for (const msgId of currentBatch) {
-    try {
-      const fwd = await bot.telegram.forwardMessage(ctx.from.id, chatId, msgId);
-      
-      let media = null;
-      let fileType = null;
-
-      if (fwd.document) {
-        media = fwd.document;
-        fileType = 'document';
-      } else if (fwd.video) {
-        media = fwd.video;
-        fileType = 'video';
-      }
-
-      if (media) {
-        savePendingMedia({
-          file_id:     media.file_id,
-          file_unique: media.file_unique_id,
-          file_name:   media.file_name || media.file_unique_id,
-          file_size:   media.file_size || null,
-          file_type:   fileType,
-          mime_type:   media.mime_type || null,
-          caption:     fwd.caption || null,
-          chat_id:     chatId,
-          message_id:  msgId,
-        });
-        processedCount++;
-      }
-      
-      remaining = remaining.filter(id => id !== msgId);
-      fs.writeFileSync(stateFile, JSON.stringify({ pending: remaining }, null, 2));
-      
-      await delay(500);
-    } catch (err) {
-      console.error(`[FORWARD] Error forwarding ${msgId} from ${chatId}:`, err.message);
-      if (err.code === 429) {
-        const retryAfter = err.parameters?.retry_after || 30;
-        await ctx.reply(`⚠️ Rate limit hit. Pausing for ${retryAfter} seconds...`);
-        await delay(retryAfter * 1000);
-        break; // Let user re-run the command
-      } else {
-        // Log other errors and remove from pending to avoid endless failure loops
-        remaining = remaining.filter(id => id !== msgId);
-        fs.writeFileSync(stateFile, JSON.stringify({ pending: remaining }, null, 2));
-      }
-    }
-  }
-  
-  if (remaining.length > 0) {
-    await ctx.reply(`✅ Indexed ${processedCount} files. ${remaining.length} remaining. Run /index ${chatId} confirm again for next batch.`);
-  } else {
-    await ctx.reply(`✅ Indexed ${processedCount} files. All pending media for ${chatId} have been forwarded and staged.`);
-  }
 }
 
 // ─── SETUP ───────────────────────────────────────────────────────────────────
@@ -194,39 +119,23 @@ function setupCommands(bot) {
 
   // ─── MEDIA MANAGEMENT ──────────────────────────────────────────────────────
 
-  // /index [chat_id] [confirm]
+  // /index [chat_id]
   bot.command('index', (ctx) => adminOnly(ctx, async () => {
     const parts = ctx.message.text.split(/\s+/);
     const chatIdStr = parts[1];
-    const action = parts[2];
     let chatId = null;
 
     if (chatIdStr) {
       chatId = Number(chatIdStr);
       if (isNaN(chatId)) {
-        return ctx.reply('Usage: /index [chat_id] [confirm]\n\nCommits pending media for the specified channel, or all channels if no chat_id is given.');
+        return ctx.reply('Usage: /index [chat_id]\n\nIndexes the specified channel, or all channels if no chat_id is given.');
       }
       
-      const stateFile = require('path').join(__dirname, '../data', `pending_forwards_${chatId}.json`);
-
-      if (action === 'confirm') {
-        if (!fs.existsSync(stateFile)) {
-          return ctx.reply(`❌ No pending forwards found for ${chatId}. Run /index ${chatId} first.`);
-        }
-        await processPendingForwards(bot, ctx, chatId, stateFile);
-        await runManualIndex(bot, ctx, chatId);
-        return;
-      }
-
       if (config.SESSION_STRING) {
         await ctx.reply('🔄 Fetching history via GramJS...');
         try {
           const { total, mediaCount } = await fetchChannelMedia(chatId);
-          if (mediaCount > 0) {
-            await ctx.reply(`✅ Found ${mediaCount} media files from ${chatId} (${total} total messages scanned).\nRun /index ${chatId} confirm to start indexing them in batches of 50.`);
-          } else {
-            await ctx.reply(`✅ No new media files found in ${chatId} (${total} messages scanned).`);
-          }
+          await ctx.reply(`✅ Indexed ${mediaCount} media files from ${chatId} (${total} total messages scanned).`);
         } catch (err) {
           console.error('[GRAMJS]', err);
           await ctx.reply(`⚠️ GramJS fetch failed: ${err.message}`);
@@ -239,17 +148,12 @@ function setupCommands(bot) {
         for (const ch of channels) {
           try {
             const { total, mediaCount } = await fetchChannelMedia(ch.chat_id);
-            if (mediaCount > 0) {
-              await ctx.reply(`✅ Found ${mediaCount} media files from ${ch.chat_id} (${total} total messages scanned).\nRun /index ${ch.chat_id} confirm to start indexing.`);
-            } else {
-              await ctx.reply(`✅ No new media files found in ${ch.chat_id} (${total} messages scanned).`);
-            }
+            await ctx.reply(`✅ Indexed ${mediaCount} media files from ${ch.chat_id} (${total} total messages scanned).`);
           } catch (err) {
             console.error(`[GRAMJS] Failed for ${ch.chat_id}:`, err.message);
           }
         }
       }
-      await runManualIndex(bot, ctx, null);
     }
   }));
 
@@ -274,24 +178,17 @@ function setupCommands(bot) {
     );
   }));
 
-  // /delete <file_id>
-  // Usage: reply to a file and use /delete, or pass file_id directly
+  // /delete <id>
+  // Usage: pass id directly
   bot.command('delete', (ctx) => adminOnly(ctx, () => {
     const parts = ctx.message.text.split(/\s+/);
-    let fileId = parts[1];
+    const fileId = Number(parts[1]);
 
-    // If replying to a message with media, extract file_id automatically
-    const reply = ctx.message.reply_to_message;
-    if (!fileId && reply) {
-      const media = reply.document || reply.video;
-      if (media) fileId = media.file_id;
+    if (!fileId || isNaN(fileId)) {
+      return ctx.reply('Usage: /delete <id>');
     }
 
-    if (!fileId) {
-      return ctx.reply('Usage: /delete <file_id>\nOr reply to a media message with /delete');
-    }
-
-    const deleted = deleteMediaByFileId(fileId);
+    const deleted = deleteMediaById(fileId);
     ctx.reply(deleted ? '✅ File removed from index.' : '❌ File not found in index.');
   }));
 
@@ -329,11 +226,10 @@ Results are paginated automatically.
 /listchannels
 
 *Media management:*
-/index [chat\_id] — commit pending media
+/index [chat_id] — index channel history
 /total — total indexed files
 /stats — full stats
-/delete <file\\_id> — remove from index
-(or reply to a media msg with /delete)
+/delete <id> — remove from index
     `.trim();
 
     ctx.reply(isAdm ? `${userHelp}\n\n${adminHelp}` : userHelp, { parse_mode: 'Markdown' });
@@ -351,7 +247,7 @@ Results are paginated automatically.
     ).join('\n\n');
     const buttons = results.map(f => ([{
       text: `📥 ${f.file_name.substring(0, 50)}`,
-      callback_data: `get_${f.id}`
+      callback_data: `get_f_${f.id}`
     }]));
     buttons.push([{ text: '▶️ Next Page', callback_data: `search_${query}_${PAGE_SIZE}` }]);
     await ctx.reply(`🔍 Results for "${query}" — Page 1:\n\n` + text, {
@@ -370,7 +266,7 @@ Results are paginated automatically.
     ).join('\n\n');
     const buttons = results.map(f => ([{
       text: `📥 ${f.file_name.substring(0, 50)}`,
-      callback_data: `get_${f.id}`
+      callback_data: `get_f_${f.id}`
     }]));
     if (results.length === PAGE_SIZE) {
       buttons.push([{ text: '▶️ Next Page', callback_data: `search_${query}_${offset + PAGE_SIZE}` }]);
@@ -379,6 +275,21 @@ Results are paginated automatically.
     await ctx.reply(`🔍 Results for "${query}" — Page ${Math.floor(offset/PAGE_SIZE)+1}:\n\n` + text, {
       reply_markup: { inline_keyboard: buttons }
     });
+  });
+
+  bot.action(/^get_f_(.+)$/, async (ctx) => {
+    const recordId = ctx.match[1];
+    const record = getMediaById(recordId);
+    if (!record) {
+      return ctx.answerCbQuery('❌ File not found in database.', { show_alert: true });
+    }
+    try {
+      await ctx.telegram.forwardMessage(ctx.from.id, record.chat_id, record.message_id);
+      await ctx.answerCbQuery('✅ File sent!');
+    } catch (err) {
+      console.error('[FORWARD] Error:', err.message);
+      await ctx.answerCbQuery('❌ Failed to forward file. Make sure the bot is still in the channel.', { show_alert: true });
+    }
   });
 }
 

@@ -3,8 +3,9 @@ const {
   addAdmin, removeAdmin, listAdmins,
   addChannel, removeChannel, listChannels,
   getTotalCount, deleteMediaByFileId, getStats,
-  searchMedia, getMediaById, cleanDatabase,
+  searchMedia, getMediaById, cleanDatabase, savePendingMedia
 } = require('../database/db');
+const fs = require('fs');
 const config = require('../config');
 const { runManualIndex } = require('./indexer');
 const { fetchChannelMedia } = require('../userbot');
@@ -25,6 +26,72 @@ function formatBytes(bytes) {
   let i = 0;
   while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
   return `${bytes.toFixed(1)} ${units[i]}`;
+}
+
+const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
+async function processPendingForwards(bot, ctx, chatId, stateFile) {
+  if (!fs.existsSync(stateFile)) return;
+  
+  let state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  let pending = state.pending || [];
+  if (pending.length === 0) return;
+  
+  await ctx.reply(`🚀 Starting to forward ${pending.length} media messages to your DM for indexing...`);
+  
+  let processedCount = 0;
+  let remaining = [...pending];
+  
+  for (const msgId of pending) {
+    try {
+      const fwd = await bot.telegram.forwardMessage(ctx.from.id, chatId, msgId);
+      
+      let media = null;
+      let fileType = null;
+
+      if (fwd.document) {
+        media = fwd.document;
+        fileType = 'document';
+      } else if (fwd.video) {
+        media = fwd.video;
+        fileType = 'video';
+      }
+
+      if (media) {
+        savePendingMedia({
+          file_id:     media.file_id,
+          file_unique: media.file_unique_id,
+          file_name:   media.file_name || media.file_unique_id,
+          file_size:   media.file_size || null,
+          file_type:   fileType,
+          mime_type:   media.mime_type || null,
+          caption:     fwd.caption || null,
+          chat_id:     chatId,
+          message_id:  msgId,
+        });
+        processedCount++;
+      }
+      
+      remaining = remaining.filter(id => id !== msgId);
+      fs.writeFileSync(stateFile, JSON.stringify({ pending: remaining }, null, 2));
+      
+      await delay(500);
+    } catch (err) {
+      console.error(`[FORWARD] Error forwarding ${msgId} from ${chatId}:`, err.message);
+      if (err.code === 429) {
+        const retryAfter = err.parameters?.retry_after || 30;
+        await ctx.reply(`⚠️ Rate limit hit. Pausing for ${retryAfter} seconds...`);
+        await delay(retryAfter * 1000);
+        break; // Let user re-run the command
+      } else {
+        // Log other errors and remove from pending to avoid endless failure loops
+        remaining = remaining.filter(id => id !== msgId);
+        fs.writeFileSync(stateFile, JSON.stringify({ pending: remaining }, null, 2));
+      }
+    }
+  }
+  
+  await ctx.reply(`✅ Forwarded and staged ${processedCount} media files.`);
 }
 
 // ─── SETUP ───────────────────────────────────────────────────────────────────
@@ -135,9 +202,12 @@ function setupCommands(bot) {
       if (config.SESSION_STRING) {
         await ctx.reply('🔄 Fetching history via GramJS...');
         try {
-          const { total, mediaCount } = await fetchChannelMedia(chatId);
-          await ctx.reply(`✅ Indexed ${mediaCount} new files from ${chatId} (${total} total messages scanned)`);
-          await ctx.reply('✅ GramJS fetch complete. Committing to index...');
+          const { total, mediaCount, stateFile } = await fetchChannelMedia(chatId);
+          await ctx.reply(`✅ Found ${mediaCount} new files from ${chatId} (${total} total messages scanned)`);
+          if (stateFile) {
+            await processPendingForwards(bot, ctx, chatId, stateFile);
+          }
+          await ctx.reply('✅ GramJS fetch and forward complete. Committing to index...');
         } catch (err) {
           console.error('[GRAMJS]', err);
           await ctx.reply(`⚠️ GramJS fetch failed: ${err.message}`);
@@ -149,13 +219,16 @@ function setupCommands(bot) {
         await ctx.reply(`🔄 Fetching history via GramJS for ${channels.length} channels...`);
         for (const ch of channels) {
           try {
-            const { total, mediaCount } = await fetchChannelMedia(ch.chat_id);
-            await ctx.reply(`✅ Indexed ${mediaCount} new files from ${ch.chat_id} (${total} total messages scanned)`);
+            const { total, mediaCount, stateFile } = await fetchChannelMedia(ch.chat_id);
+            await ctx.reply(`✅ Found ${mediaCount} new files from ${ch.chat_id} (${total} total messages scanned)`);
+            if (stateFile) {
+              await processPendingForwards(bot, ctx, ch.chat_id, stateFile);
+            }
           } catch (err) {
             console.error(`[GRAMJS] Failed for ${ch.chat_id}:`, err.message);
           }
         }
-        await ctx.reply('✅ GramJS fetch complete. Committing to index...');
+        await ctx.reply('✅ GramJS fetch and forward complete. Committing to index...');
       }
     }
     

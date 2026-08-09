@@ -19,18 +19,23 @@ async function getClient() {
   return client;
 }
 
+const fs = require('fs');
+const path = require('path');
+
 const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
 async function fetchChannelMedia(chatId) {
   const c = await getClient();
-  
-  if (!config.BOT_USERNAME) {
-    throw new Error('BOT_USERNAME is not configured in .env');
+
+  const dataDir = path.join(__dirname, 'data');
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
   }
+  const stateFile = path.join(dataDir, `pending_forwards_${chatId}.json`);
+  let pendingIds = [];
 
   console.log(`[GRAMJS] Scanning chat ${chatId}...`);
   let total = 0, mediaCount = 0;
-  let forwardsInBatch = 0;
 
   for await (const message of c.iterMessages(chatId, { limit: undefined, waitTime: 1 })) {
     total++;
@@ -38,56 +43,15 @@ async function fetchChannelMedia(chatId) {
     if (message.media && message.media.className === 'MessageMediaDocument' && message.media.document) {
       if (!getMediaBySourceId(Number(chatId), message.id)) {
         mediaCount++;
-        try {
-          await c.invoke(new Api.messages.ForwardMessages({
-            fromPeer: chatId,
-            id: [message.id],
-            toPeer: config.BOT_USERNAME,
-            randomId: [BigInt(Math.floor(Math.random() * 1e15))],
-            dropAuthor: false,
-          }));
-          console.log('[GRAMJS] Forwarded message', message.id, 'to bot DM');
-          forwardsInBatch++;
-
-          if (forwardsInBatch >= 100) {
-            console.log(`[GRAMJS] Batch of 100 reached. Pausing for 30 seconds...`);
-            await delay(30000);
-            forwardsInBatch = 0;
-          }
-        } catch (err) {
-          if (err.errorMessage === 'FLOOD_WAIT_X' || err.message.includes('FLOOD_WAIT')) {
-            const waitTime = err.seconds || parseInt(err.message.match(/\d+/)?.[0] || '30', 10);
-            console.log(`[GRAMJS] Flood wait for ${waitTime} seconds...`);
-            await delay(waitTime * 1000);
-            try {
-              await c.invoke(new Api.messages.ForwardMessages({
-                fromPeer: chatId,
-                id: [message.id],
-                toPeer: config.BOT_USERNAME,
-                randomId: [BigInt(Math.floor(Math.random() * 1e15))],
-                dropAuthor: false,
-              }));
-              console.log('[GRAMJS] Forwarded message', message.id, 'to bot DM');
-              forwardsInBatch++;
-              
-              if (forwardsInBatch >= 100) {
-                console.log(`[GRAMJS] Batch of 100 reached. Pausing for 30 seconds...`);
-                await delay(30000);
-                forwardsInBatch = 0;
-              }
-            } catch (retryErr) {
-              // Silent skip
-            }
-          } else {
-            // Silent skip for other errors
-          }
-        }
+        pendingIds.push(message.id);
       }
     }
   }
 
-  console.log(`[GRAMJS] Scan complete: ${total} messages, ${mediaCount} media forwarded`);
-  return { total, mediaCount };
+  fs.writeFileSync(stateFile, JSON.stringify({ pending: pendingIds }, null, 2));
+
+  console.log(`[GRAMJS] Scan complete: ${total} messages scanned, ${mediaCount} media found to forward`);
+  return { total, mediaCount, stateFile };
 }
 
 module.exports = { fetchChannelMedia };

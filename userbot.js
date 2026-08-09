@@ -1,7 +1,7 @@
 const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const config = require('./config');
-const { getMongoDb } = require('./database/mongo');
+const { saveMedia } = require('./database/db');
 
 const apiId = Number(config.API_ID);
 const apiHash = config.API_HASH;
@@ -42,19 +42,17 @@ async function fetchChannelMedia(chatId) {
       const fileSize = Number(doc.size);
 
       try {
-        await getMongoDb().collection('files').updateOne(
-          { chatId: chatId.toString(), messageId: message.id },
-          {
-            $set: {
-              chatId: chatId.toString(),
-              messageId: message.id,
-              fileName,
-              fileSize,
-              date: message.date,
-            }
-          },
-          { upsert: true }
-        );
+        saveMedia({
+          file_id: doc.id.toString(),
+          file_unique: doc.id.toString(),
+          file_name: fileName,
+          file_size: fileSize,
+          file_type: 'document',
+          mime_type: doc.mimeType || '',
+          caption: message.message || '',
+          chat_id: Number(chatId),
+          message_id: message.id,
+        });
       } catch (err) {
         console.error(`[GRAMJS] Failed to save metadata for ${message.id}:`, err.message);
       }

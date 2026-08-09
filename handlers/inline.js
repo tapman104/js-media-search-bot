@@ -1,4 +1,4 @@
-const { searchMediaMongo, getFileById } = require('../database/mongo');
+const { searchMedia, getMediaById } = require('../database/db');
 const { checkRateLimit } = require('../utils/rateLimit');
 const config = require('../config');
 const { forwardFileOnDemand } = require('../userbot');
@@ -29,7 +29,7 @@ function setupInlineHandler(bot) {
       const rawQuery = ctx.inlineQuery.query || '';
       const offset   = parseInt(ctx.inlineQuery.offset) || 0;
 
-      const files = await searchMediaMongo(rawQuery, offset, config.MAX_RESULTS);
+      const files = searchMedia(rawQuery, offset, config.MAX_RESULTS);
 
       if (files.length === 0) {
         await ctx.answerInlineQuery([], {
@@ -42,18 +42,18 @@ function setupInlineHandler(bot) {
       }
 
       const results = files.map((file) => {
-        const desc = `📄 ${formatSize(file.fileSize)}`;
+        const desc = `📄 ${formatSize(file.file_size)}`;
         return {
           type: 'article',
-          id: file._id.toString(),
-          title: file.fileName || 'Unknown File',
+          id: file.id.toString(),
+          title: file.file_name || 'Unknown File',
           description: desc,
           input_message_content: {
-            message_text: `📁 *${file.fileName || 'Unknown File'}*\nSize: ${formatSize(file.fileSize)}\n\nClick the button below to download.`,
+            message_text: `📁 *${file.file_name || 'Unknown File'}*\nSize: ${formatSize(file.file_size)}\n\nClick the button below to download.`,
             parse_mode: 'Markdown'
           },
           reply_markup: {
-            inline_keyboard: [[{ text: '📥 Get File', callback_data: `get_${file._id.toString()}` }]]
+            inline_keyboard: [[{ text: '📥 Get File', callback_data: `get_${file.id.toString()}` }]]
           }
         };
       });
@@ -76,7 +76,7 @@ function setupInlineHandler(bot) {
   bot.action(/^get_(.+)$/, async (ctx) => {
     try {
       const fileId = ctx.match[1];
-      const file = await getFileById(fileId);
+      const file = getMediaById(Number(fileId));
       if (!file) {
         return ctx.answerCbQuery('❌ File not found', { show_alert: true });
       }
@@ -85,7 +85,7 @@ function setupInlineHandler(bot) {
       const targetChat = ctx.chat?.id || ctx.from?.id; // works in DMs and groups
 
       if (targetChat) {
-        await forwardFileOnDemand(file.chatId, file.messageId, targetChat);
+        await forwardFileOnDemand(file.chat_id, file.message_id, targetChat);
       }
     } catch (err) {
       console.error('[INLINE] Callback Error:', err.message);

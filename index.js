@@ -1,14 +1,12 @@
 const { Telegraf } = require('telegraf');
 const config       = require('./config');
 const { initDB }   = require('./database/db');
-const { initMongo } = require('./database/mongo');
 const setupCommands = require('./handlers/commands');
 const setupInline   = require('./handlers/inline');
 const { setupIndexer } = require('./handlers/indexer');
 
 async function main() {
   console.log('[BOT] Starting Media Search Bot...');
-  await initMongo();
   const bot = new Telegraf(config.BOT_TOKEN);
 
   // Register handlers

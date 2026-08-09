@@ -247,6 +247,10 @@ function deleteMediaByFileId(fileId) {
   return info.changes > 0;
 }
 
+function getMediaById(id) {
+  return db.prepare('SELECT * FROM media WHERE id = ?').get(id);
+}
+
 function getStats() {
   const total     = db.prepare('SELECT COUNT(*) as c FROM media').get().c;
   const docs      = db.prepare("SELECT COUNT(*) as c FROM media WHERE file_type='document'").get().c;
@@ -261,4 +265,5 @@ module.exports = {
   isAdmin, addAdmin, removeAdmin, listAdmins,
   isIndexedChannel, addChannel, removeChannel, listChannels,
   saveMedia, savePendingMedia, commitPendingMedia, searchMedia, getTotalCount, deleteMediaByFileId, getStats,
+  getMediaById,
 };

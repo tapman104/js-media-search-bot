@@ -1,0 +1,15 @@
+{
+  "name": "media-search-bot",
+  "version": "1.0.0",
+  "description": "Lightweight Telegram media search bot with SQLite FTS5",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "telegraf": "^4.16.3",
+    "better-sqlite3": "^9.4.3",
+    "dotenv": "^16.4.5"
+  }
+}

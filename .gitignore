@@ -1,0 +1,16 @@
+# Environment
+.env
+
+# Database
+data/
+
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+
+# AI planning files
+implementation_plan.md
+task.md
+walkthrough.md

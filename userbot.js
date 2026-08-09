@@ -1,6 +1,7 @@
 const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const config = require('./config');
+const { getMongoDb } = require('./database/mongo');
 
 const apiId = Number(config.API_ID);
 const apiHash = config.API_HASH;
@@ -36,35 +37,26 @@ async function fetchChannelMedia(chatId) {
     if (message.media && message.media instanceof Api.MessageMediaDocument && message.media.document) {
       mediaCount++;
 
-      const forwardMessage = async () => {
-        await c.invoke(new Api.messages.ForwardMessages({
-          fromPeer: chatId,
-          id: [message.id],
-          toPeer: config.BOT_USERNAME,
-          randomId: [BigInt(Math.floor(Math.random() * 1e13))],
-        }));
-        console.log(`[GRAMJS] Successfully forwarded message ${message.id} from ${chatId}`);
-        await delay(500);
-      };
+      const doc = message.media.document;
+      const fileName = doc.attributes?.find(a => a.className === 'DocumentAttributeFilename')?.fileName || '';
+      const fileSize = Number(doc.size);
 
       try {
-        await forwardMessage();
+        await getMongoDb().collection('files').updateOne(
+          { chatId: chatId.toString(), messageId: message.id },
+          {
+            $set: {
+              chatId: chatId.toString(),
+              messageId: message.id,
+              fileName,
+              fileSize,
+              date: message.date,
+            }
+          },
+          { upsert: true }
+        );
       } catch (err) {
-        if (err.name === 'FloodWaitError' || err.errorMessage?.startsWith('FLOOD_WAIT')) {
-          const seconds = err.seconds || parseInt(err.errorMessage?.split('_')[2]) || 5;
-          console.log(`[GRAMJS] FloodWait triggered. Sleeping for ${seconds} seconds before retrying...`);
-          await delay(seconds * 1000 + 1000);
-          
-          try {
-            await forwardMessage();
-          } catch (retryErr) {
-            // If retry fails, log and move on
-            console.error(`[GRAMJS] Retry failed for message ${message.id} from ${chatId}:`, retryErr.message);
-          }
-        } else {
-          // Not a FloodWait, log it but don't crash
-          console.error(`[GRAMJS] Failed to forward message ${message.id} from ${chatId}:`, err.message);
-        }
+        console.error(`[GRAMJS] Failed to save metadata for ${message.id}:`, err.message);
       }
     }
   }
@@ -72,4 +64,14 @@ async function fetchChannelMedia(chatId) {
   console.log(`[GRAMJS] Scan complete: ${total} messages, ${mediaCount} media found`);
 }
 
-module.exports = { fetchChannelMedia };
+async function forwardFileOnDemand(chatId, messageId, toPeer) {
+  const c = await getClient();
+  await c.invoke(new Api.messages.ForwardMessages({
+    fromPeer: chatId,
+    id: [messageId],
+    toPeer: toPeer,
+    randomId: [BigInt(Math.floor(Math.random() * 1e13))],
+  }));
+}
+
+module.exports = { fetchChannelMedia, forwardFileOnDemand };

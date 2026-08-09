@@ -18,7 +18,7 @@ const config = {
   RATE_LIMIT_SECONDS: Number(process.env.RATE_LIMIT_SECONDS) || 10,
   MAX_RESULTS:        Number(process.env.MAX_RESULTS) || 10,
   START_MSG:          process.env.START_MSG || 'Hi! Use inline mode to search media.',
-  DB_PATH:            process.env.DB_PATH || './data/media.db',
+  MONGODB_URI:        process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/media_search_bot',
 };
 
 if (!config.BOT_TOKEN) {

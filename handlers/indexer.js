@@ -4,9 +4,9 @@ const { isIndexedChannel, savePendingMedia, commitPendingMedia, listChannels } =
  * Listens for messages in indexed channels and silently accumulates them in the pending table.
  */
 function setupIndexer(bot) {
-  bot.on(['message'], async (ctx) => {
+  bot.on(['message', 'channel_post'], async (ctx) => {
     try {
-      const msg = ctx.message;
+      const msg = ctx.message || ctx.channelPost;
       if (!msg) return;
 
       const chatId = ctx.chat.id;

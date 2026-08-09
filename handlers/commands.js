@@ -6,6 +6,7 @@ const {
 } = require('../database/db');
 const config = require('../config');
 const { runManualIndex } = require('./indexer');
+const { fetchChannelMedia } = require('../userbot');
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -127,6 +128,30 @@ function setupCommands(bot) {
       chatId = Number(chatIdStr);
       if (isNaN(chatId)) {
         return ctx.reply('Usage: /index [chat_id]\n\nCommits pending media for the specified channel, or all channels if no chat_id is given.');
+      }
+      
+      if (config.SESSION_STRING) {
+        await ctx.reply('🔄 Fetching history via GramJS...');
+        try {
+          await fetchChannelMedia(chatId);
+          await ctx.reply('✅ GramJS fetch complete. Committing to index...');
+        } catch (err) {
+          console.error('[GRAMJS]', err);
+          await ctx.reply(`⚠️ GramJS fetch failed: ${err.message}`);
+        }
+      }
+    } else {
+      if (config.SESSION_STRING) {
+        const channels = listChannels();
+        await ctx.reply(`🔄 Fetching history via GramJS for ${channels.length} channels...`);
+        for (const ch of channels) {
+          try {
+            await fetchChannelMedia(ch.chat_id);
+          } catch (err) {
+            console.error(`[GRAMJS] Failed for ${ch.chat_id}:`, err.message);
+          }
+        }
+        await ctx.reply('✅ GramJS fetch complete. Committing to index...');
       }
     }
     

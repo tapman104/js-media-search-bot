@@ -9,7 +9,18 @@ function setupIndexer(bot) {
       const msg = ctx.message || ctx.channelPost;
       if (!msg) return;
 
-      const chatId = ctx.chat.id;
+      let chatId = ctx.chat.id;
+      let originalMessageId = msg.message_id;
+
+      // Check if the message is forwarded from a channel
+      if (msg.forward_from_chat) {
+        chatId = msg.forward_from_chat.id;
+        originalMessageId = msg.forward_from_message_id || msg.message_id;
+      } else if (msg.forward_origin && msg.forward_origin.chat) {
+        chatId = msg.forward_origin.chat.id;
+        originalMessageId = msg.forward_origin.message_id || msg.message_id;
+      }
+
       if (!isIndexedChannel(chatId)) return;
 
       let media = null;
@@ -34,7 +45,7 @@ function setupIndexer(bot) {
         mime_type:   media.mime_type || null,
         caption:     msg.caption || null,
         chat_id:     chatId,
-        message_id:  msg.message_id,
+        message_id:  originalMessageId,
       });
 
     } catch (err) {

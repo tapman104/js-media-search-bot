@@ -9,6 +9,7 @@ function parseIds(envVal = '') {
 
 const config = {
   BOT_TOKEN:          process.env.BOT_TOKEN,
+  BOT_USERNAME:       process.env.BOT_USERNAME,
   API_ID:             process.env.API_ID,
   API_HASH:           process.env.API_HASH,
   SESSION_STRING:     process.env.SESSION_STRING,

@@ -75,7 +75,7 @@ function setupInlineHandler(bot) {
       }
 
       await ctx.answerCbQuery('⏳ Sending file...');
-      const targetChat = ctx.callbackQuery?.message?.chat?.id || ctx.from?.id;
+      const targetChat = ctx.from?.id;
 
       if (targetChat) {
         await forwardFileOnDemand(String(file.chat_id), file.message_id, String(targetChat));

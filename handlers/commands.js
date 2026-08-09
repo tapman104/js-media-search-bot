@@ -245,16 +245,42 @@ Results are paginated automatically.
   bot.command('search', async (ctx) => {
     const query = ctx.message.text.split(' ').slice(1).join(' ').trim();
     if (!query) return ctx.reply('Usage: /search <filename>');
-    const results = searchMedia(query, 0, 10);
+    const PAGE_SIZE = 10;
+    const results = searchMedia(query, 0, PAGE_SIZE);
     if (!results.length) return ctx.reply('❌ No results found for: ' + query);
-    const text = results.map((f, i) => `${i+1}. 📄 ${f.file_name}\n💾 ${formatSize(f.file_size)}`).join('\n\n');
-    await ctx.reply(`🔍 Results for "${query}":\n\n` + text, {
-      reply_markup: {
-        inline_keyboard: results.map(f => ([{
-          text: `📥 ${f.file_name.substring(0, 40)}`,
-          callback_data: `get_${f.id}`
-        }]))
-      }
+    const total = require('../database/db').getTotalCount();
+    const text = results.map((f, i) =>
+      `${i+1}. 📄 ${f.file_name}\n💾 ${formatSize(f.file_size)}`
+    ).join('\n\n');
+    const buttons = results.map(f => ([{
+      text: `📥 ${f.file_name.substring(0, 50)}`,
+      callback_data: `get_${f.id}`
+    }]));
+    buttons.push([{ text: '▶️ Next Page', callback_data: `search_${query}_${PAGE_SIZE}` }]);
+    await ctx.reply(`🔍 Results for "${query}" — Page 1:\n\n` + text, {
+      reply_markup: { inline_keyboard: buttons }
+    });
+  });
+
+  bot.action(/^search_(.+)_(\d+)$/, async (ctx) => {
+    const query = ctx.match[1];
+    const offset = Number(ctx.match[2]);
+    const PAGE_SIZE = 10;
+    const results = searchMedia(query, offset, PAGE_SIZE);
+    if (!results.length) return ctx.answerCbQuery('No more results.', { show_alert: true });
+    const text = results.map((f, i) =>
+      `${i+1}. 📄 ${f.file_name}\n💾 ${formatSize(f.file_size)}`
+    ).join('\n\n');
+    const buttons = results.map(f => ([{
+      text: `📥 ${f.file_name.substring(0, 50)}`,
+      callback_data: `get_${f.id}`
+    }]));
+    if (results.length === PAGE_SIZE) {
+      buttons.push([{ text: '▶️ Next Page', callback_data: `search_${query}_${offset + PAGE_SIZE}` }]);
+    }
+    await ctx.answerCbQuery();
+    await ctx.reply(`🔍 Results for "${query}" — Page ${Math.floor(offset/PAGE_SIZE)+1}:\n\n` + text, {
+      reply_markup: { inline_keyboard: buttons }
     });
   });
 }

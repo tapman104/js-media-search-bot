@@ -33,39 +33,36 @@ async function fetchChannelMedia(chatId) {
   for await (const message of c.iterMessages(chatId, { limit: undefined })) {
     total++;
 
-    if (!message.media) continue;
-    if (!(message.media instanceof Api.MessageMediaDocument)) continue;
-    if (!message.media.document) continue;
+    if (message.media && message.media instanceof Api.MessageMediaDocument && message.media.document) {
+      mediaCount++;
 
-    mediaCount++;
+      const forwardMessage = async () => {
+        await c.sendMessage(config.BOT_USERNAME, {
+          forwardMessages: [message.id],
+          fromPeer: chatId,
+        });
+        console.log(`[GRAMJS] Successfully forwarded message ${message.id} from ${chatId}`);
+        await delay(500);
+      };
 
-
-    const forwardMessage = async () => {
-      await c.sendMessage(config.BOT_USERNAME, {
-        forwardMessages: [message.id],
-        fromPeer: chatId,
-      });
-      console.log(`[GRAMJS] Successfully forwarded message ${message.id} from ${chatId}`);
-      await delay(500);
-    };
-
-    try {
-      await forwardMessage();
-    } catch (err) {
-      if (err.name === 'FloodWaitError' || err.errorMessage?.startsWith('FLOOD_WAIT')) {
-        const seconds = err.seconds || parseInt(err.errorMessage?.split('_')[2]) || 5;
-        console.log(`[GRAMJS] FloodWait triggered. Sleeping for ${seconds} seconds before retrying...`);
-        await delay(seconds * 1000 + 1000);
-        
-        try {
-          await forwardMessage();
-        } catch (retryErr) {
-          // If retry fails, log and move on
-          console.error(`[GRAMJS] Retry failed for message ${message.id} from ${chatId}:`, retryErr.message);
+      try {
+        await forwardMessage();
+      } catch (err) {
+        if (err.name === 'FloodWaitError' || err.errorMessage?.startsWith('FLOOD_WAIT')) {
+          const seconds = err.seconds || parseInt(err.errorMessage?.split('_')[2]) || 5;
+          console.log(`[GRAMJS] FloodWait triggered. Sleeping for ${seconds} seconds before retrying...`);
+          await delay(seconds * 1000 + 1000);
+          
+          try {
+            await forwardMessage();
+          } catch (retryErr) {
+            // If retry fails, log and move on
+            console.error(`[GRAMJS] Retry failed for message ${message.id} from ${chatId}:`, retryErr.message);
+          }
+        } else {
+          // Not a FloodWait, log it but don't crash
+          console.error(`[GRAMJS] Failed to forward message ${message.id} from ${chatId}:`, err.message);
         }
-      } else {
-        // Not a FloodWait, log it but don't crash
-        console.error(`[GRAMJS] Failed to forward message ${message.id} from ${chatId}:`, err.message);
       }
     }
   }

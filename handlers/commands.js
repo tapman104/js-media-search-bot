@@ -6,7 +6,6 @@ const {
   searchMedia, getMediaById, cleanDatabase
 } = require('../database/db');
 const config = require('../config');
-const { fetchChannelMedia } = require('../userbot');
 const { formatSize } = require('../utils/format');
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -121,6 +120,7 @@ function setupCommands(bot) {
 
   // /index [chat_id]
   bot.command('index', (ctx) => adminOnly(ctx, async () => {
+    const { fetchChannelMedia } = require('../userbot');
     const parts = ctx.message.text.split(/\s+/);
     const chatIdStr = parts[1];
     let chatId = null;

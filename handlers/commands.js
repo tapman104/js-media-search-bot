@@ -3,10 +3,12 @@ const {
   addAdmin, removeAdmin, listAdmins,
   addChannel, removeChannel, listChannels,
   getTotalCount, deleteMediaByFileId, getStats,
+  searchMedia, getMediaById,
 } = require('../database/db');
 const config = require('../config');
 const { runManualIndex } = require('./indexer');
 const { fetchChannelMedia } = require('../userbot');
+const { formatSize } = require('../utils/format');
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -238,6 +240,22 @@ Results are paginated automatically.
     `.trim();
 
     ctx.reply(isAdm ? `${userHelp}\n\n${adminHelp}` : userHelp, { parse_mode: 'Markdown' });
+  });
+
+  bot.command('search', async (ctx) => {
+    const query = ctx.message.text.split(' ').slice(1).join(' ').trim();
+    if (!query) return ctx.reply('Usage: /search <filename>');
+    const results = searchMedia(query, 0, 10);
+    if (!results.length) return ctx.reply('❌ No results found for: ' + query);
+    const text = results.map((f, i) => `${i+1}. 📄 ${f.file_name}\n💾 ${formatSize(f.file_size)}`).join('\n\n');
+    await ctx.reply(`🔍 Results for "${query}":\n\n` + text, {
+      reply_markup: {
+        inline_keyboard: results.map(f => ([{
+          text: `📥 ${f.file_name.substring(0, 40)}`,
+          callback_data: `get_${f.id}`
+        }]))
+      }
+    });
   });
 }
 

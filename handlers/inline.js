@@ -2,14 +2,7 @@ const { searchMedia, getMediaById } = require('../database/db');
 const { checkRateLimit } = require('../utils/rateLimit');
 const config = require('../config');
 const { forwardFileOnDemand } = require('../userbot');
-
-function formatSize(bytes) {
-  if (!bytes) return 'Unknown size';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let i = 0;
-  while (bytes >= 1024 && i < units.length - 1) { bytes /= 1024; i++; }
-  return `${bytes.toFixed(1)} ${units[i]}`;
-}
+const { formatSize } = require('../utils/format');
 
 function setupInlineHandler(bot) {
   bot.on('inline_query', async (ctx) => {
@@ -82,10 +75,10 @@ function setupInlineHandler(bot) {
       }
 
       await ctx.answerCbQuery('⏳ Sending file...');
-      const targetChat = ctx.chat?.id || ctx.from?.id; // works in DMs and groups
+      const targetChat = ctx.callbackQuery?.message?.chat?.id || ctx.from?.id;
 
       if (targetChat) {
-        await forwardFileOnDemand(file.chat_id, file.message_id, targetChat);
+        await forwardFileOnDemand(String(file.chat_id), file.message_id, String(targetChat));
       }
     } catch (err) {
       console.error('[INLINE] Callback Error:', err.message);

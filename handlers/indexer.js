@@ -6,9 +6,15 @@ const { isIndexedChannel, savePendingMedia, commitPendingMedia, listChannels } =
 function setupIndexer(bot) {
   bot.on(['message', 'channel_post'], async (ctx) => {
     try {
-      console.log('[INDEXER] Received message from:', ctx.from?.id, 'type:', ctx.message?.document ? 'document' : 'other');
       const msg = ctx.message || ctx.channelPost;
       if (!msg) return;
+
+      console.log('[INDEXER] Received message from:', ctx.from?.id, 'type:', msg.document ? 'document' : 'other');
+      console.log('[INDEXER] Full message keys:', JSON.stringify(Object.keys(msg)));
+      console.log('[INDEXER] Has document:', !!msg.document);
+      console.log('[INDEXER] Has video:', !!msg.video);
+      console.log('[INDEXER] Forward origin:', JSON.stringify(msg.forward_origin));
+      console.log('[INDEXER] Forward from chat:', JSON.stringify(msg.forward_from_chat));
 
       let chatId = ctx.chat.id;
       let originalMessageId = msg.message_id;

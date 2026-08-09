@@ -38,10 +38,13 @@ async function fetchChannelMedia(chatId) {
       if (!getMediaBySourceId(Number(chatId), message.id)) {
         mediaCount++;
         try {
-          await c.sendMessage(config.BOT_USERNAME, {
-            forwardMessages: [message.id],
-            fromPeer: chatId
-          });
+          await c.invoke(new Api.messages.ForwardMessages({
+            fromPeer: chatId,
+            id: [message.id],
+            toPeer: config.BOT_USERNAME,
+            randomId: [BigInt(Math.floor(Math.random() * 1e15))],
+            dropAuthor: false,
+          }));
           await delay(2000);
           console.log('[GRAMJS] Forwarded message', message.id, 'to bot DM');
         } catch (err) {
@@ -50,10 +53,13 @@ async function fetchChannelMedia(chatId) {
             console.log(`[GRAMJS] Flood wait for ${waitTime} seconds...`);
             await delay(waitTime * 1000);
             try {
-              await c.sendMessage(config.BOT_USERNAME, {
-                forwardMessages: [message.id],
-                fromPeer: chatId
-              });
+              await c.invoke(new Api.messages.ForwardMessages({
+                fromPeer: chatId,
+                id: [message.id],
+                toPeer: config.BOT_USERNAME,
+                randomId: [BigInt(Math.floor(Math.random() * 1e15))],
+                dropAuthor: false,
+              }));
               await delay(2000);
               console.log('[GRAMJS] Forwarded message', message.id, 'to bot DM');
             } catch (retryErr) {

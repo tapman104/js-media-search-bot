@@ -1,7 +1,7 @@
 const { TelegramClient, Api } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const config = require('./config');
-const { saveMedia, getMediaBySourceId } = require('./database/db');
+const { getMediaBySourceId } = require('./database/db');
 
 const apiId = Number(config.API_ID);
 const apiHash = config.API_HASH;
@@ -34,46 +34,39 @@ async function fetchChannelMedia(chatId) {
   for await (const message of c.iterMessages(chatId, { limit: undefined, waitTime: 1 })) {
     total++;
 
-    if (message.media && message.media instanceof Api.MessageMediaDocument && message.media.document) {
-      mediaCount++;
-
-      const doc = message.media.document;
-      const fileName = doc.attributes?.find(a => a.className === 'DocumentAttributeFilename')?.fileName || '';
-      const fileSize = Number(doc.size);
-
-      try {
-        if (!getMediaBySourceId(Number(chatId), message.id)) {
-          saveMedia({
-            file_id: doc.id.toString(),
-            file_unique: doc.id.toString(),
-            file_name: fileName,
-            file_size: fileSize,
-            file_type: 'document',
-            mime_type: doc.mimeType || '',
-            caption: message.message || '',
-            chat_id: Number(chatId),
-            message_id: message.id,
+    if (message.media && message.media.className === 'MessageMediaDocument' && message.media.document) {
+      if (!getMediaBySourceId(Number(chatId), message.id)) {
+        mediaCount++;
+        try {
+          await c.sendMessage(config.BOT_USERNAME, {
+            forwardMessages: [message.id],
+            fromPeer: chatId
           });
+          await delay(2000);
+        } catch (err) {
+          if (err.errorMessage === 'FLOOD_WAIT_X' || err.message.includes('FLOOD_WAIT')) {
+            const waitTime = err.seconds || parseInt(err.message.match(/\d+/)?.[0] || '30', 10);
+            console.log(`[GRAMJS] Flood wait for ${waitTime} seconds...`);
+            await delay(waitTime * 1000);
+            try {
+              await c.sendMessage(config.BOT_USERNAME, {
+                forwardMessages: [message.id],
+                fromPeer: chatId
+              });
+              await delay(2000);
+            } catch (retryErr) {
+              // Silent skip
+            }
+          } else {
+            // Silent skip for other errors
+          }
         }
-      } catch (err) {
-        console.error(`[GRAMJS] Failed to save metadata for ${message.id}:`, err.message);
       }
     }
   }
 
-  console.log(`[GRAMJS] Scan complete: ${total} messages, ${mediaCount} media found`);
+  console.log(`[GRAMJS] Scan complete: ${total} messages, ${mediaCount} media forwarded`);
   return { total, mediaCount };
 }
 
-async function forwardFileOnDemand(chatId, messageId, toPeer) {
-  const c = await getClient();
-  const resolvedPeer = await c.getInputEntity(toPeer);
-  await c.invoke(new Api.messages.ForwardMessages({
-    fromPeer: await c.getInputEntity(chatId),
-    id: [messageId],
-    toPeer: resolvedPeer,
-    randomId: [BigInt(Math.floor(Math.random() * 1e13))],
-  }));
-}
-
-module.exports = { fetchChannelMedia, forwardFileOnDemand };
+module.exports = { fetchChannelMedia };

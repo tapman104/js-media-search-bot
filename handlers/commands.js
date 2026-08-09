@@ -3,7 +3,7 @@ const {
   addAdmin, removeAdmin, listAdmins,
   addChannel, removeChannel, listChannels,
   getTotalCount, deleteMediaByFileId, getStats,
-  searchMedia, getMediaById,
+  searchMedia, getMediaById, cleanDatabase,
 } = require('../database/db');
 const config = require('../config');
 const { runManualIndex } = require('./indexer');
@@ -202,6 +202,12 @@ function setupCommands(bot) {
 
     const deleted = deleteMediaByFileId(fileId);
     ctx.reply(deleted ? '✅ File removed from index.' : '❌ File not found in index.');
+  }));
+
+  // /cleandb
+  bot.command('cleandb', (ctx) => adminOnly(ctx, () => {
+    cleanDatabase();
+    ctx.reply('🧹 Database cleaned. All media and pending media have been wiped. Ready for re-indexing.');
   }));
 
   // ─── HELP ──────────────────────────────────────────────────────────────────

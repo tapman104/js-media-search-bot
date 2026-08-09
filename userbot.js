@@ -67,10 +67,11 @@ async function fetchChannelMedia(chatId) {
 
 async function forwardFileOnDemand(chatId, messageId, toPeer) {
   const c = await getClient();
+  const resolvedPeer = await c.getInputEntity(toPeer);
   await c.invoke(new Api.messages.ForwardMessages({
-    fromPeer: chatId,
+    fromPeer: await c.getInputEntity(chatId),
     id: [messageId],
-    toPeer: toPeer,
+    toPeer: resolvedPeer,
     randomId: [BigInt(Math.floor(Math.random() * 1e13))],
   }));
 }

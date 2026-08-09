@@ -37,10 +37,12 @@ async function fetchChannelMedia(chatId) {
       mediaCount++;
 
       const forwardMessage = async () => {
-        await c.sendMessage(config.BOT_USERNAME, {
-          forwardMessages: [message.id],
+        await c.invoke(new Api.messages.ForwardMessages({
           fromPeer: chatId,
-        });
+          id: [message.id],
+          toPeer: config.BOT_USERNAME,
+          randomId: [BigInt(Math.floor(Math.random() * 1e13))],
+        }));
         console.log(`[GRAMJS] Successfully forwarded message ${message.id} from ${chatId}`);
         await delay(500);
       };

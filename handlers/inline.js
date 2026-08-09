@@ -1,7 +1,6 @@
-const { searchMedia, getMediaById } = require('../database/db');
+const { searchMedia } = require('../database/db');
 const { checkRateLimit } = require('../utils/rateLimit');
 const config = require('../config');
-const { forwardFileOnDemand } = require('../userbot');
 const { formatSize } = require('../utils/format');
 
 function setupInlineHandler(bot) {
@@ -36,18 +35,28 @@ function setupInlineHandler(bot) {
 
       const results = files.map((file) => {
         const desc = `📄 ${formatSize(file.file_size)}`;
+        const caption = `📁 *${file.file_name || 'Unknown File'}*\nSize: ${formatSize(file.file_size)}`;
+
+        if (file.file_type === 'video') {
+          return {
+            type: 'video',
+            id: file.id.toString(),
+            title: file.file_name || 'Unknown Video',
+            video_file_id: file.file_id,
+            description: desc,
+            caption: caption,
+            parse_mode: 'Markdown'
+          };
+        }
+
         return {
-          type: 'article',
+          type: 'document',
           id: file.id.toString(),
           title: file.file_name || 'Unknown File',
+          document_file_id: file.file_id,
           description: desc,
-          input_message_content: {
-            message_text: `📁 *${file.file_name || 'Unknown File'}*\nSize: ${formatSize(file.file_size)}\n\nClick the button below to download.`,
-            parse_mode: 'Markdown'
-          },
-          reply_markup: {
-            inline_keyboard: [[{ text: '📥 Get File', callback_data: `get_${file.id.toString()}` }]]
-          }
+          caption: caption,
+          parse_mode: 'Markdown'
         };
       });
 
@@ -63,26 +72,6 @@ function setupInlineHandler(bot) {
     } catch (err) {
       console.error('[INLINE] Error:', err.message);
       await ctx.answerInlineQuery([], { cache_time: 0 }).catch(() => {});
-    }
-  });
-
-  bot.action(/^get_(.+)$/, async (ctx) => {
-    try {
-      const fileId = ctx.match[1];
-      const file = getMediaById(Number(fileId));
-      if (!file) {
-        return ctx.answerCbQuery('❌ File not found', { show_alert: true });
-      }
-
-      await ctx.answerCbQuery('⏳ Sending file...');
-      const targetChat = ctx.from?.id;
-
-      if (targetChat) {
-        await forwardFileOnDemand(String(file.chat_id), file.message_id, String(targetChat));
-      }
-    } catch (err) {
-      console.error('[INLINE] Callback Error:', err.message);
-      await ctx.answerCbQuery('⚠️ Error sending file', { show_alert: true }).catch(() => {});
     }
   });
 }

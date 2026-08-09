@@ -1,4 +1,5 @@
-# Media Search Bot
+# Media Search Bot a js telegram bot 
+
 
 Lightweight Telegram media search bot. SQLite + FTS5, no external DB needed.
 

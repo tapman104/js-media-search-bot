@@ -286,7 +286,7 @@ Results are paginated automatically.
     ).join('\n\n');
     const buttons = results.map(f => ([{
       text: `📥 ${f.file_name.substring(0, 50)}`,
-      callback_data: `get_f_${f.id}`
+      callback_data: `get_f_${f.id}_${ctx.from.id}`
     }]));
     buttons.push([{ text: '▶️ Next Page', callback_data: `search_${query}_${PAGE_SIZE}` }]);
     await ctx.reply(`🔍 Results for "${query}" — Page 1:\n\n` + text, {
@@ -305,7 +305,7 @@ Results are paginated automatically.
     ).join('\n\n');
     const buttons = results.map(f => ([{
       text: `📥 ${f.file_name.substring(0, 50)}`,
-      callback_data: `get_f_${f.id}`
+      callback_data: `get_f_${f.id}_${ctx.from.id}`
     }]));
     if (results.length === PAGE_SIZE) {
       buttons.push([{ text: '▶️ Next Page', callback_data: `search_${query}_${offset + PAGE_SIZE}` }]);
@@ -316,8 +316,14 @@ Results are paginated automatically.
     });
   });
 
-  bot.action(/^get_f_(.+)$/, async (ctx) => {
+  bot.action(/^get_f_(\d+)(?:_(\d+))?$/, async (ctx) => {
     const recordId = ctx.match[1];
+    const initiatorId = ctx.match[2] ? Number(ctx.match[2]) : null;
+
+    if (initiatorId && ctx.from.id !== initiatorId) {
+      return ctx.answerCbQuery("⛔ This file was requested by someone else.", { show_alert: true }).catch(() => {});
+    }
+
     await sendMediaToUser(ctx, recordId);
   });
 }

@@ -49,7 +49,7 @@ function setupInlineHandler(bot) {
           reply_markup: {
             inline_keyboard: [[{
               text: '📥 Get File',
-              callback_data: `get_f_${file.id}`
+              callback_data: `get_f_${file.id}_${ctx.from.id}`
             }]]
           }
         };

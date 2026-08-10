@@ -29,8 +29,43 @@ function formatBytes(bytes) {
 
 function setupCommands(bot) {
 
+  async function sendMediaToUser(ctx, recordId) {
+    const record = getMediaById(recordId);
+    if (!record) {
+      if (ctx.callbackQuery) {
+        await ctx.answerCbQuery('❌ File not found in database.', { show_alert: true }).catch(() => {});
+      } else {
+        await ctx.reply('❌ File not found in database.');
+      }
+      return;
+    }
+
+    try {
+      if (ctx.callbackQuery) {
+        await ctx.answerCbQuery().catch(() => {});
+      }
+
+      // If requested from a group/DM, ctx.chat.id will exist. 
+      // Fallback to ctx.from.id for inline queries where ctx.chat might be undefined.
+      const targetChatId = ctx.chat?.id || ctx.from.id;
+      await ctx.telegram.copyMessage(targetChatId, record.chat_id, record.message_id);
+    } catch (err) {
+      console.error('[DELIVERY] Error:', err.message);
+      const errMsg = '❌ Failed to send file. Make sure the bot is still in the indexed channel.';
+      try {
+        await ctx.reply(errMsg);
+      } catch (e) {}
+    }
+  }
+
   // /start
-  bot.start((ctx) => {
+  bot.start(async (ctx) => {
+    if (ctx.startPayload) {
+      const match = ctx.startPayload.match(/^(?:get_f_)?(\d+)$/);
+      if (match) {
+        return sendMediaToUser(ctx, match[1]);
+      }
+    }
     const msg = config.START_MSG.replace(/\\n/g, '\n');
     ctx.reply(msg, {
       reply_markup: {
@@ -39,6 +74,11 @@ function setupCommands(bot) {
         ]],
       },
     });
+  });
+
+  // Text-based file retrieval
+  bot.hears(/^\/get(?:_f_|_| )(\d+)$/i, async (ctx) => {
+    await sendMediaToUser(ctx, ctx.match[1]);
   });
 
   // ─── ADMIN MANAGEMENT ──────────────────────────────────────────────────────
@@ -278,17 +318,7 @@ Results are paginated automatically.
 
   bot.action(/^get_f_(.+)$/, async (ctx) => {
     const recordId = ctx.match[1];
-    const record = getMediaById(recordId);
-    if (!record) {
-      return ctx.answerCbQuery('❌ File not found in database.', { show_alert: true });
-    }
-    try {
-      await ctx.telegram.forwardMessage(ctx.from.id, record.chat_id, record.message_id);
-      await ctx.answerCbQuery('✅ File sent!');
-    } catch (err) {
-      console.error('[FORWARD] Error:', err.message);
-      await ctx.answerCbQuery('❌ Failed to forward file. Make sure the bot is still in the channel.', { show_alert: true });
-    }
+    await sendMediaToUser(ctx, recordId);
   });
 }
 

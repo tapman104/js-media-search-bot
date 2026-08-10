@@ -1,6 +1,6 @@
 const { Telegraf } = require('telegraf');
 const config       = require('./config');
-const { initDB }   = require('./database/db');
+
 const setupCommands = require('./handlers/commands');
 const setupInline   = require('./handlers/inline');
 
@@ -21,13 +21,13 @@ async function main() {
     console.error(`[BOT] Error for update ${ctx.updateType}:`, err.message);
   });
 
+  const me = await bot.telegram.getMe();
+  console.log(`[BOT] Running as @${me.username}`);
+
   // Launch with long polling
   await bot.launch({
     dropPendingUpdates: true, // ignore updates that piled up while bot was offline
   });
-
-  const me = await bot.telegram.getMe();
-  console.log(`[BOT] Running as @${me.username}`);
   console.log(`[BOT] Indexed channels: ${config.CHANNELS.join(', ') || 'none (add via /addchannel)'}`);
   console.log(`[BOT] Admins: ${config.ADMINS.join(', ')}`);
 }

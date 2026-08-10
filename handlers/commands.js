@@ -241,7 +241,6 @@ Results are paginated automatically.
     const PAGE_SIZE = 10;
     const results = searchMedia(query, 0, PAGE_SIZE);
     if (!results.length) return ctx.reply('❌ No results found for: ' + query);
-    const total = require('../database/db').getTotalCount();
     const text = results.map((f, i) =>
       `${i+1}. 📄 ${f.file_name}\n💾 ${formatSize(f.file_size)}`
     ).join('\n\n');

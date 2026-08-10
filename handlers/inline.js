@@ -37,10 +37,14 @@ function setupInlineHandler(bot) {
         const desc = `📄 ${formatSize(file.file_size)}`;
         const caption = `📁 *${file.file_name || 'Unknown File'}*\nSize: ${formatSize(file.file_size)}`;
 
+        const name = file.file_name || 'Unknown File';
+        const truncated = name.length > 40 ? name.substring(0, 37) + '...' : name;
+        const btnText = `${truncated} • ${formatSize(file.file_size)}`;
+
         return {
           type: 'article',
           id: file.id.toString(),
-          title: file.file_name || 'Unknown File',
+          title: name,
           description: desc,
           input_message_content: {
             message_text: caption,
@@ -48,7 +52,7 @@ function setupInlineHandler(bot) {
           },
           reply_markup: {
             inline_keyboard: [[{
-              text: '📥 Get File',
+              text: btnText,
               callback_data: `get_f_${file.id}_${ctx.from.id}`
             }]]
           }

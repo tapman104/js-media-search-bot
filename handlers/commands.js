@@ -48,7 +48,15 @@ function setupCommands(bot) {
       // If requested from a group/DM, ctx.chat.id will exist. 
       // Fallback to ctx.from.id for inline queries where ctx.chat might be undefined.
       const targetChatId = ctx.chat?.id || ctx.from.id;
-      await ctx.telegram.copyMessage(targetChatId, record.chat_id, record.message_id);
+      const sent = await ctx.telegram.copyMessage(targetChatId, record.chat_id, record.message_id);
+
+      setTimeout(async () => {
+        try {
+          await ctx.telegram.deleteMessage(targetChatId, sent.message_id);
+        } catch (e) {
+          // message may already be deleted or bot lacks permission, ignore silently
+        }
+      }, 8 * 60 * 1000);
     } catch (err) {
       console.error('[DELIVERY] Error:', err.message);
       const errMsg = '❌ Failed to send file. Make sure the bot is still in the indexed channel.';
@@ -281,15 +289,21 @@ Results are paginated automatically.
     const PAGE_SIZE = 10;
     const results = searchMedia(query, 0, PAGE_SIZE);
     if (!results.length) return ctx.reply('❌ No results found for: ' + query);
-    const text = results.map((f, i) =>
-      `${i+1}. 📄 ${f.file_name}\n💾 ${formatSize(f.file_size)}`
-    ).join('\n\n');
-    const buttons = results.map(f => ([{
-      text: `📥 ${f.file_name.substring(0, 50)}`,
-      callback_data: `get_f_${f.id}_${ctx.from.id}`
-    }]));
-    buttons.push([{ text: '▶️ Next Page', callback_data: `search_${query}_${PAGE_SIZE}` }]);
-    await ctx.reply(`🔍 Results for "${query}" — Page 1:\n\n` + text, {
+    
+    const buttons = results.map(f => {
+      const name = f.file_name || 'Unknown';
+      const truncated = name.length > 40 ? name.substring(0, 37) + '...' : name;
+      return [{
+        text: `${truncated} • ${formatSize(f.file_size)}`,
+        callback_data: `get_f_${f.id}_${ctx.from.id}`
+      }];
+    });
+
+    if (results.length === PAGE_SIZE) {
+      buttons.push([{ text: 'PAGE 2 ▶', callback_data: `search_${query}_${PAGE_SIZE}` }]);
+    }
+
+    await ctx.reply(`🔍 Results for "${query}" — Page 1:`, {
       reply_markup: { inline_keyboard: buttons }
     });
   });
@@ -300,27 +314,43 @@ Results are paginated automatically.
     const PAGE_SIZE = 10;
     const results = searchMedia(query, offset, PAGE_SIZE);
     if (!results.length) return ctx.answerCbQuery('No more results.', { show_alert: true });
-    const text = results.map((f, i) =>
-      `${i+1}. 📄 ${f.file_name}\n💾 ${formatSize(f.file_size)}`
-    ).join('\n\n');
-    const buttons = results.map(f => ([{
-      text: `📥 ${f.file_name.substring(0, 50)}`,
-      callback_data: `get_f_${f.id}_${ctx.from.id}`
-    }]));
-    if (results.length === PAGE_SIZE) {
-      buttons.push([{ text: '▶️ Next Page', callback_data: `search_${query}_${offset + PAGE_SIZE}` }]);
-    }
-    await ctx.answerCbQuery();
-    await ctx.reply(`🔍 Results for "${query}" — Page ${Math.floor(offset/PAGE_SIZE)+1}:\n\n` + text, {
-      reply_markup: { inline_keyboard: buttons }
+    
+    const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
+    const buttons = results.map(f => {
+      const name = f.file_name || 'Unknown';
+      const truncated = name.length > 40 ? name.substring(0, 37) + '...' : name;
+      return [{
+        text: `${truncated} • ${formatSize(f.file_size)}`,
+        callback_data: `get_f_${f.id}_${ctx.from.id}`
+      }];
     });
+
+    if (results.length === PAGE_SIZE) {
+      buttons.push([{ text: `PAGE ${currentPage + 1} ▶`, callback_data: `search_${query}_${offset + PAGE_SIZE}` }]);
+    }
+    
+    await ctx.answerCbQuery();
+    const header = `🔍 Results for "${query}" — Page ${currentPage}:`;
+    try {
+      await ctx.editMessageText(header, {
+        reply_markup: { inline_keyboard: buttons }
+      });
+    } catch (err) {
+      await ctx.reply(header, {
+        reply_markup: { inline_keyboard: buttons }
+      });
+    }
   });
 
   bot.action(/^get_f_(\d+)(?:_(\d+))?$/, async (ctx) => {
     const recordId = ctx.match[1];
     const initiatorId = ctx.match[2] ? Number(ctx.match[2]) : null;
 
-    if (initiatorId && ctx.from.id !== initiatorId) {
+    if (!initiatorId) {
+      return ctx.answerCbQuery("⚠️ This button is outdated. Please search again.", { show_alert: true }).catch(() => {});
+    }
+
+    if (ctx.from.id !== initiatorId) {
       return ctx.answerCbQuery("⛔ This file was requested by someone else.", { show_alert: true }).catch(() => {});
     }
 

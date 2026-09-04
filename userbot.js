@@ -82,4 +82,4 @@ async function fetchChannelMedia(chatId) {
   return { total, mediaCount };
 }
 
-module.exports = { fetchChannelMedia };
+module.exports = { fetchChannelMedia, getClient };

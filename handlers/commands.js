@@ -10,12 +10,7 @@ const { formatSize } = require('../utils/format');
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
-function adminOnly(ctx, fn) {
-  if (!isAdmin(ctx.from.id)) {
-    return ctx.reply('⛔ Admins only.');
-  }
-  return fn();
-}
+const { adminOnly } = require('../utils/auth');
 
 function formatBytes(bytes) {
   if (!bytes) return '0 B';
@@ -284,6 +279,8 @@ Results are paginated automatically.
 
 *Media management:*
 /index [chat_id] — index channel history
+/forward <src> <dst> [start_id] — Bulk forward all messages
+/stopforward <src> <dst> — Stop a running forward job
 /total — total indexed files
 /stats — full stats
 /delete <id> — remove from index

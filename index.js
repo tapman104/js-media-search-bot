@@ -3,6 +3,7 @@ const config       = require('./config');
 
 const setupCommands = require('./handlers/commands');
 const setupInline   = require('./handlers/inline');
+const { setupForward } = require('./handlers/forward');
 const { listChannels, saveMedia } = require('./database/db');
 
 async function main() {
@@ -12,6 +13,7 @@ async function main() {
   // Register handlers
   setupCommands(bot);
   setupInline(bot);
+  setupForward(bot);
 
   // Real-time indexing: only fires for channels where the bot is an admin
   bot.on('channel_post', (ctx) => {

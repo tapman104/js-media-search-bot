@@ -279,8 +279,8 @@ Results are paginated automatically.
 
 *Media management:*
 /index [chat_id] — index channel history
-/forward <src> <dst> [start_id] — Bulk forward all messages
-/stopforward <src> <dst> — Stop a running forward job
+/forward <src_chat_id> <dst_chat_id> [start_msg_id] — Bulk forward all messages between chats
+/stopforward <src_chat_id> <dst_chat_id> — Stop a running bulk forward job
 /total — total indexed files
 /stats — full stats
 /delete <id> — remove from index

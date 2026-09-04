@@ -2,7 +2,7 @@ const { getClient } = require('../userbot');
 const { adminOnly } = require('../utils/auth');
 
 const activeJobs = new Set(); // key: `${sourceChatId}->${destChatId}`
-const BATCH_DELAY_MS = 500;
+const BATCH_DELAY_MS = 2000;
 const BATCH_SIZE = 100;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 

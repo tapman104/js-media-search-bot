@@ -48,7 +48,16 @@ function setupCommands(bot) {
       // If requested from a group/DM, ctx.chat.id will exist. 
       // Fallback to ctx.from.id for inline queries where ctx.chat might be undefined.
       const targetChatId = ctx.chat?.id || ctx.from.id;
-      const sent = await ctx.telegram.copyMessage(targetChatId, record.chat_id, record.message_id);
+      let sent;
+      try {
+        sent = await ctx.telegram.copyMessage(targetChatId, record.chat_id, record.message_id);
+      } catch (err) {
+        console.error('[DELIVERY] Error copying message:', err.message);
+        if (ctx.chat) {
+          await ctx.reply("❌ Failed to deliver file. You may have blocked the bot or the source is unavailable.");
+        }
+        return;
+      }
 
       setTimeout(async () => {
         try {
@@ -346,11 +355,7 @@ Results are paginated automatically.
     const recordId = ctx.match[1];
     const initiatorId = ctx.match[2] ? Number(ctx.match[2]) : null;
 
-    if (!initiatorId) {
-      return ctx.answerCbQuery("⚠️ This button is outdated. Please search again.", { show_alert: true }).catch(() => {});
-    }
-
-    if (ctx.from.id !== initiatorId) {
+    if (initiatorId && ctx.from.id !== initiatorId) {
       return ctx.answerCbQuery("⛔ This file was requested by someone else.", { show_alert: true }).catch(() => {});
     }
 

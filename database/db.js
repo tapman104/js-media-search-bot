@@ -3,8 +3,13 @@ const path = require('path');
 const fs = require('fs');
 const config = require('../config');
 
+function sanitizeQuery(input) {
+  if (!input) return '';
+  return input.replace(/[*\-^"():~]/g, '').trim();
+}
+
 // Ensure data directory exists
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../data/media.db');
+const DB_PATH = process.env.DB_PATH || path.resolve(__dirname, '../data/media.db');
 const dbDir = path.dirname(DB_PATH);
 if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
@@ -18,7 +23,6 @@ try {
     console.log('[DB] Migrating schema (dropping old media tables)...');
     db.exec('DROP TABLE IF EXISTS media_fts');
     db.exec('DROP TABLE IF EXISTS media');
-    db.exec('DROP TABLE IF EXISTS pending_media');
   }
 } catch (e) { }
 
@@ -166,7 +170,7 @@ function saveMedia(media) {
 }
 
 function searchMedia(query, offset = 0, limit = 10) {
-  query = (query || '').trim();
+  query = sanitizeQuery(query);
 
   let rows;
 

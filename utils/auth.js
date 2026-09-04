@@ -1,6 +1,6 @@
 const { isAdmin } = require('../database/db');
 function adminOnly(ctx, fn) {
-  if (!isAdmin(ctx.from.id)) {
+  if (!ctx.from || !isAdmin(ctx.from.id)) {
     return ctx.reply('⛔ Admins only.');
   }
   return fn();

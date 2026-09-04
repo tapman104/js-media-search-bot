@@ -126,6 +126,10 @@ async function runForward(ctx, sourceChatId, destChatId, startMsgId) {
       try {
         await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, undefined, `❌ Forward failed: ${err.message}`);
       } catch (e) {}
+    } else {
+      if (ctx.chat) {
+        await ctx.telegram.sendMessage(ctx.chat.id, '❌ Forward failed: ' + err.message);
+      }
     }
   } finally {
     activeJobs.delete(jobKey);
